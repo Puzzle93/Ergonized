@@ -1,0 +1,4 @@
+[instance]
+nomad1    ansible_host=34.147.80.147
+
+

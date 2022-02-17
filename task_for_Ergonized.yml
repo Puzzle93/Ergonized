@@ -1,0 +1,84 @@
+---
+- hosts: instance
+  become: yes
+  vars_files:
+    - group_vars/variables.yml
+    
+  tasks:
+    - name: set up the repository
+      apt:
+        name: "{{ set_up_repo }}"
+        update_cache: yes
+  
+    - name: add apt-key
+      apt_key:
+        url: "{{ gpg_key }}"
+
+    - name: add docker repo
+      apt_repository:
+        repo: "{{ docker_repo }}"
+
+    - name: install docker engine
+      apt:
+        name: "{{ docker_engine_install }}"
+        update_cache: yes
+
+    - name: install docker compose
+      get_url:
+        url: "{{ docker_compose_url }}"
+        dest: /usr/local/bin/docker-compose
+        mode: u+x,g+x,o+x
+    
+    - name: install htop
+      apt:
+        name: "{{ install_htop }}"
+        update_cache: yes
+
+###########Node_exporter_and_prometheus##########
+
+    - name: create group
+      group:
+        name: prometheus
+        state: present
+
+    - name: create prometheus user
+      user:
+        name: prometheus
+        group: prometheus
+        createhome: no
+        system: yes
+        state: present
+
+    - name: create opt directory for prometheus
+      file:
+        path: /opt/prometheus
+        state: directory
+
+    - name: download node exporter
+      get_url:
+        url: https://github.com/prometheus/node_exporter/releases/download/v{{ node_exporter_version }}/node_exporter-{{ node_exporter_version }}.linux-amd64.tar.gz
+        dest: /opt/prometheus
+
+    - name: unarchive node exporter
+      unarchive:
+        remote_src: yes
+        src: /opt/prometheus/node_exporter-{{ node_exporter_version }}.linux-amd64.tar.gz
+        dest: /opt/prometheus
+
+    - name: create symlink to node exporter
+      file:
+        path: /usr/bin/node_exporter
+        state: link
+        src: /opt/prometheus/node_exporter-{{ node_exporter_version }}.linux-amd64/node_exporter
+
+    - name: install unit file to systemd
+      template:
+        src: node_exporter.service
+        dest: /etc/systemd/system/node_exporter.service
+
+    - name: configure systemd to use service
+      systemd:
+        daemon_reload: yes
+        enabled: yes
+        state: started
+        name: node_exporter.service
